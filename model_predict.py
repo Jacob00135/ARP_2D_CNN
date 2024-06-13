@@ -68,5 +68,5 @@ def main(model_name, device):
 if __name__ == '__main__':
     main(
         model_name='xjy_20240611',
-        device='cpu'
+        device='cuda:1'
     )

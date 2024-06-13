@@ -25,6 +25,7 @@ class ModelTrainer(object):
 
         self.num_classes = 2
         self.epoch = 0
+        self.steps = 0
         self.checkpoint_path = os.path.join(root_path, 'checkpoints', model_name)
         if not os.path.exists(self.checkpoint_path):
             os.mkdir(self.checkpoint_path)
@@ -64,6 +65,12 @@ class ModelTrainer(object):
 
             batch_loss_list.append(batch_loss.item())
 
+            # 保存模型
+            self.steps = self.steps + 1
+            if self.need_to_save_model():
+                filename = 'steps_{}.pth'.format(self.steps)
+                self.save_model(filename)
+
             # break  # TODO
 
         loss_mean = sum(batch_loss_list) / len(batch_loss_list)
@@ -78,8 +85,10 @@ class ModelTrainer(object):
             self.train_an_epoch()
 
             # 保存模型
+            """
             filename = 'epoch_{}.pth'.format(epoch)
             self.save_model(filename)
+            """
 
             # 计算准确率和loss
             train_loss, train_accuracy = self.eval_model('train')
@@ -95,6 +104,17 @@ class ModelTrainer(object):
             print()
 
             # break  # TODO
+
+    def need_to_save_model(self):
+        if self.epoch <= 1:
+            return True
+        if self.epoch <= 5 and self.steps % 5 == 0:
+            return True
+        if self.epoch <= 10 and self.steps % 50 == 0:
+            return True
+        if self.epoch <= 50 and self.steps % 100 == 0:
+            return True
+        return self.steps % 200 == 0
 
     def save_model(self, filename):
         save_path = os.path.join(self.checkpoint_path, filename)
@@ -145,15 +165,42 @@ class ModelTrainer(object):
 
         return loss_mean, accuracy
 
+    def estimate_save_model_size(self, num_epoch):
+        # 计算总大小
+        model_size = 450657517  # 保存的单个模型的大小，单位为B
+        num_model = 0
+        num_batch = len(self.train_set)
+        for epoch in range(1, num_epoch + 1):
+            self.epoch = epoch
+            for _ in range(num_batch):
+                self.steps = self.steps + 1
+                num_model = num_model + int(self.need_to_save_model())
+        total_size = num_model * model_size
+
+        # 换算单位
+        human_total_size = total_size
+        for u in ['B', 'KB', 'MB', 'GB', 'TB']:
+            if human_total_size >= 1024:
+                human_total_size = human_total_size / 1024
+            else:
+                human_total_size = '{} {}'.format(human_total_size, u)
+                break
+        print('预估会保存的模型个数：{}'.format(num_model))
+        print('保存的模型的总大小：{} ({} B)'.format(human_total_size, total_size))
+
+        self.epoch = 0
+        self.steps = 0
+
 
 if __name__ == '__main__':
     mt = ModelTrainer(
-        model_name=None,
+        model_name='xjy_20240613',
         device='cuda:1',
         batch_size=16,
         init_lr=0.00001,
         weight_decay=0.01
     )
+    mt.estimate_save_model_size(100)
     mt.train(100)
     """
     mt.load_model(os.path.join(mt.checkpoint_path, 'epoch_100.pth'))
